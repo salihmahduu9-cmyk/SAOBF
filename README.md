@@ -1,55 +1,88 @@
-# Hercules Web — مُشفّر لوا (نشر على Vercel)
+--pipeline.lua
+local config = require("config")
 
-موقع يشغّل خط أنابيب **Hercules** الأصلي (Lua) داخل المتصفح عبر **Fengari**
-(مفسّر لوا مترجم لـ JS/WASM). كل التشفير يصير على جهاز المستخدم —
-**لا سيرفر، لا رفع للكود، لا قاعدة بيانات.** وهذا يخليه مثالي لـ Vercel
-لأنه موقع ثابت 100%.
+local StringEncoder = require("modules/string_encoder")
+local VariableRenamer = require("modules/variable_renamer")
+local ControlFlowObfuscator = require("modules/control_flow_obfuscator")
+local GarbageCodeInserter = require("modules/garbage_code_inserter")
+local OpaquePredicateInjector = require("modules/opaque_predicate_injector")
+local FunctionInliner = require("modules/function_inliner")
+local DynamicCodeGenerator = require("modules/dynamic_code_generator")
+local BytecodeEncoder = require("modules/bytecode_encoder")
+local Watermarker = require("modules/watermark")
+local Compressor = require("modules/compressor")
+local StringToExpressions = require("modules/StringToExpressions")
+local WrapInFunction = require("modules/WrapInFunction")
+local VirtualMachinery = require("modules/VMGenerator")
+local AntiTamper = require("modules/antitamper")
 
-## الهيكل
+local Pipeline = {}
 
-```
-herc-site/
-├── vercel.json          إعداد Vercel
-├── public/
-│   ├── index.html       الواجهة
-│   ├── run.js           محمّل Fengari + منطق التشفير
-│   └── hercules/        وحدات Hercules (لوا) — تُحمّل وقت التشغيل
-│       ├── config.lua
-│       ├── pipeline.lua
-│       └── modules/...
-```
+function Pipeline.process(code)
+    if config.get("settings.string_encoding.enabled") then
+        code = StringEncoder.process(code)
+    end
+    
+    if config.get("settings.garbage_code.enabled") then
+        local garbage_blocks = config.get("settings.garbage_code.garbage_blocks")
+        code = GarbageCodeInserter.process(code, garbage_blocks)
+    end
+    
+    if config.get("settings.dynamic_code.enabled") then
+        code = DynamicCodeGenerator.process(code)
+    end
+    
+    if config.get("settings.opaque_predicates.enabled") then
+        code = OpaquePredicateInjector.process(code)
+    end
 
-## النشر على Vercel
+    if config.get("settings.bytecode_encoding.enabled") then
+        code = BytecodeEncoder.process(code)
+    end
+    
+    if config.get("settings.function_inlining.enabled") then
+        code = FunctionInliner.process(code)
+    end
+    
+    if config.get("settings.StringToExpressions.enabled") then
+        local min_length = config.get("settings.StringToExpressions.min_number_length")
+        local max_length = config.get("settings.StringToExpressions.max_number_length")
+        code = StringToExpressions.process(code, min_length, max_length)
+    end
+    if config.get("settings.antitamper.enabled") then
+        code = AntiTamper.process(code)
+    end
+    if config.get("settings.VirtualMachine.enabled") then
+        code = VirtualMachinery.process(code)
+    end
+    
+    if config.get("settings.control_flow.enabled") then
+        local max_fake_blocks = config.get("settings.control_flow.max_fake_blocks")
+        code = ControlFlowObfuscator.process(code, max_fake_blocks)
+    end
+    if config.get("settings.garbage_code.enabled") then
+        local garbage_blocks = config.get("settings.garbage_code.garbage_blocks")
+        code = GarbageCodeInserter.process(code, garbage_blocks)
+    end
+    if config.get("settings.variable_renaming.enabled") then
+        local min_length = config.get("settings.variable_renaming.min_name_length")
+        local max_length = config.get("settings.variable_renaming.max_name_length")
+        code = VariableRenamer.process(code, { min_length = min_length, max_length = max_length })
+    end
+    
+    if config.get("settings.compressor.enabled") then
+        code = Compressor.process(code)
+    end
+    
+    if config.get("settings.WrapInFunction.enabled") then
+        code = WrapInFunction.process(code)
+    end
+    
+    if config.get("settings.watermark_enabled") then
+        code = Watermarker.process(code)
+    end
+    
+    return code
+end
 
-### الطريقة الأسهل (بدون أوامر)
-1. ادخل https://vercel.com وسجّل دخول بـ GitHub
-2. ارفع مجلّد `herc-site` لمستودع GitHub جديد
-3. في Vercel اضغط **Add New → Project** واختر المستودع
-4. الإعدادات: Framework Preset = **Other**, Output Directory = `public`
-5. **Deploy** — خلاص، يطلع لك رابط
-
-### عبر Vercel CLI
-```bash
-npm i -g vercel
-cd herc-site
-vercel        # أول مرة: يسألك أسئلة، خلّ Output Directory = public
-vercel --prod # للنشر النهائي
-```
-
-## ملاحظات مهمة
-
-- **ملفات لوا تُقدّم كنصوص:** `vercel.json` يضبط `Content-Type` لمجلد
-  `hercules/` كـ `text/plain` عشان `fetch` يقراها صح.
-- **الأداء:** أول تشفير ياخذ ثانية أو ثنتين (تحميل Fengari + الوحدات)،
-  بعدها أسرع. الملفات الكبيرة جداً قد تكون بطيئة لأن كل شي بالمتصفح.
-- **التوافق:** بعض وحدات Hercules (خصوصاً VM وbytecode) تعتمد على
-  سلوك لوا 5.x. لو طلع خطأ مع خيار معيّن، طفّيه وجرّب. أكثر تركيبة
-  مستقرة: variable renaming + control flow + garbage + opaque + compressor + wrap.
-
-## الترخيص
-Hercules تحت رخصة Apache-2.0 — انظر مستودعه الأصلي:
-https://github.com/zeusssz/hercules-obfuscator
-
-## تنبيه
-التعمية تصعّب الهندسة العكسية لكنها ليست حماية مضمونة. أي كود يصل
-لجهاز المستخدم يمكن نظرياً استخراجه. للمنطق الحسّاس فعلاً، أبقِه على سيرفرك.
+return Pipeline
